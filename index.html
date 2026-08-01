@@ -108,8 +108,8 @@
           audio: false,
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 960 },
+            height: { ideal: 540 }
           }
         };
 
@@ -155,9 +155,9 @@
       const value = String(rawValue || '').trim();
       if (!value || completed) return;
       completed = true;
-      await stopCamera(false);
-      if (navigator.vibrate) navigator.vibrate(120);
-      setStatus('Đã đọc mã: ' + value);
+      try { if (controls) controls.stop(); } catch (_) {}
+      controls = null;
+      if (navigator.vibrate) navigator.vibrate(80);
       returnResult(value);
     }
 
@@ -251,6 +251,14 @@
 
     window.addEventListener('pagehide', () => {
       try { if (controls) controls.stop(); } catch (_) {}
+    });
+
+    // Tự thử mở camera khi scanner được gọi từ App kiểm kê.
+    // Safari nào vẫn yêu cầu thao tác tay thì nút BẮT ĐẦU QUÉT vẫn hoạt động bình thường.
+    window.addEventListener('DOMContentLoaded', () => {
+      if (returnUrlParam && target) {
+        setTimeout(() => startCamera(), 80);
+      }
     });
   </script>
 </body>
