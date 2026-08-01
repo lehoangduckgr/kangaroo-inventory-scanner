@@ -5,26 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#020617">
   <title>Quét mã kiểm kê</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://unpkg.com/@zxing/browser@0.2.1"></script>
   <style>
-    :root { color-scheme:dark; }
-    * { box-sizing:border-box; }
-    body { margin:0; min-height:100vh; background:#020617; color:#fff; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-    header { padding:16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
-    h1 { margin:0; font-size:19px; }
-    main { width:min(720px,100%); margin:auto; padding:0 16px max(24px,env(safe-area-inset-bottom)); }
-    #reader { width:100%; min-height:280px; overflow:hidden; border-radius:20px; background:#111827; }
-    #reader video { object-fit:cover !important; }
-    .panel { background:#111827; border:1px solid #334155; padding:16px; border-radius:18px; margin-top:16px; }
-    .btn { width:100%; border:0; border-radius:14px; padding:15px; font-size:16px; font-weight:700; cursor:pointer; margin-top:10px; }
-    .primary { background:#2563eb; color:#fff; }
-    .secondary { background:#334155; color:#fff; }
-    .danger { background:#7f1d1d; color:#fff; }
-    .hint { color:#cbd5e1; font-size:14px; line-height:1.5; }
-    .status { min-height:24px; margin-top:12px; font-weight:700; text-align:center; }
-    input[type=file] { display:none; }
-    .scan-line { position:relative; }
-    .scan-line:after { content:""; position:absolute; left:8%; right:8%; top:50%; height:2px; background:#22c55e; box-shadow:0 0 14px #22c55e; pointer-events:none; }
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #020617; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    h1 { margin: 0; font-size: 18px; }
+    main { width: min(720px, 100%); margin: auto; padding: 0 14px max(24px, env(safe-area-inset-bottom)); }
+    .viewer { position: relative; min-height: 280px; overflow: hidden; border-radius: 20px; background: #111827; border: 1px solid #1e293b; }
+    video { width: 100%; height: 100%; min-height: 280px; object-fit: cover; display: block; background: #111827; }
+    .scan-line { position: absolute; left: 8%; right: 8%; top: 50%; height: 2px; background: #22c55e; box-shadow: 0 0 14px #22c55e; pointer-events: none; }
+    .guide { position: absolute; inset: 20% 7%; border: 2px solid rgba(255,255,255,.35); border-radius: 16px; pointer-events: none; }
+    .panel { margin-top: 14px; padding: 15px; border-radius: 18px; border: 1px solid #334155; background: #111827; }
+    .hint { color: #cbd5e1; font-size: 14px; line-height: 1.5; }
+    .btn { width: 100%; border: 0; border-radius: 14px; padding: 15px; margin-top: 10px; font-size: 16px; font-weight: 800; cursor: pointer; }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .primary { background: #2563eb; color: #fff; }
+    .secondary { background: #334155; color: #fff; }
+    .status { min-height: 24px; margin-top: 12px; text-align: center; font-weight: 700; line-height: 1.4; }
+    .result { display: none; margin-top: 12px; padding: 13px; border-radius: 14px; background: #0f172a; }
+    .result-code { margin-top: 7px; font-size: 20px; font-weight: 900; word-break: break-all; }
+    input[type=file] { display: none; }
   </style>
 </head>
 <body>
@@ -34,40 +36,60 @@
   </header>
 
   <main>
-    <div id="reader" class="scan-line"></div>
+    <div class="viewer">
+      <video id="preview" playsinline muted></video>
+      <div class="guide"></div>
+      <div class="scan-line"></div>
+    </div>
 
     <div class="panel">
       <div class="hint">
-        Bấm <b>Bắt đầu quét</b>, cấp quyền Camera cho Safari/Chrome, sau đó đưa mã vào giữa khung hình.
-        Khi nhận được mã, trang sẽ tự quay lại biểu mẫu kiểm kê.
+        Bấm <b>Bắt đầu quét camera</b>, sau đó đưa barcode nằm ngang vào giữa khung. Trang sẽ tự dừng ngay khi đọc được mã.
       </div>
       <button id="startBtn" class="btn primary" onclick="startCamera()">BẮT ĐẦU QUÉT CAMERA</button>
       <button id="stopBtn" class="btn secondary" onclick="stopCamera()" style="display:none">DỪNG CAMERA</button>
-      <button class="btn secondary" onclick="document.getElementById('fileInput').click()">CHỤP / CHỌN ẢNH ĐỂ ĐỌC MÃ</button>
+      <button id="imageBtn" class="btn secondary" onclick="document.getElementById('fileInput').click()">CHỤP / CHỌN ẢNH ĐỂ ĐỌC MÃ</button>
       <input id="fileInput" type="file" accept="image/*" capture="environment" onchange="scanImage(event)">
       <div id="status" class="status"></div>
+
+      <div id="resultBox" class="result">
+        <div class="hint">Kết quả quét</div>
+        <div id="resultText" class="result-code"></div>
+        <button class="btn secondary" onclick="copyResult()">SAO CHÉP KẾT QUẢ</button>
+      </div>
     </div>
   </main>
 
   <script>
     const params = new URLSearchParams(location.search);
-    const returnUrl = params.get('returnUrl') || '';
+    const returnUrlParam = params.get('returnUrl') || '';
     const target = params.get('target') || '';
-    const scanner = new Html5Qrcode('reader');
-    let running = false;
+
+    const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+    let controls = null;
+    let isStarting = false;
     let completed = false;
 
-    function setStatus(text, isError=false) {
-      const el = document.getElementById('status');
-      el.textContent = text;
-      el.style.color = isError ? '#fca5a5' : '#86efac';
+    const $ = id => document.getElementById(id);
+
+    function setStatus(message, isError = false) {
+      $('status').textContent = message;
+      $('status').style.color = isError ? '#fca5a5' : '#86efac';
     }
 
-    function validateReturnUrl() {
+    function setButtons(cameraRunning) {
+      $('startBtn').style.display = cameraRunning ? 'none' : 'block';
+      $('stopBtn').style.display = cameraRunning ? 'block' : 'none';
+      $('startBtn').disabled = isStarting;
+      $('imageBtn').disabled = isStarting || cameraRunning;
+    }
+
+    function validatedReturnUrl() {
+      if (!returnUrlParam) return null;
       try {
-        const url = new URL(returnUrl);
-        if (url.protocol !== 'https:') throw new Error('Return URL phải dùng HTTPS.');
-        if (!['locInput','prodInput'].includes(target)) throw new Error('Đích nhận dữ liệu không hợp lệ.');
+        const url = new URL(returnUrlParam);
+        if (url.protocol !== 'https:') throw new Error('URL quay lại phải dùng HTTPS.');
+        if (!['locInput', 'prodInput'].includes(target)) throw new Error('Ô nhận dữ liệu không hợp lệ.');
         return url;
       } catch (error) {
         setStatus('Liên kết quay lại không hợp lệ: ' + error.message, true);
@@ -76,82 +98,120 @@
     }
 
     async function startCamera() {
-      if (running || completed) return;
-      if (!validateReturnUrl()) return;
-
-      document.getElementById('startBtn').disabled = true;
-      setStatus('Đang yêu cầu quyền camera...');
-
-      const config = {
-        fps: 12,
-        qrbox: (width, height) => ({
-          width: Math.min(Math.floor(width * 0.88), 520),
-          height: Math.min(Math.floor(height * 0.38), 240)
-        }),
-        aspectRatio: 1.7778,
-        disableFlip: false
-      };
+      if (isStarting || controls || completed) return;
+      isStarting = true;
+      setButtons(false);
+      setStatus('Đang xin quyền và khởi động camera...');
 
       try {
-        await scanner.start(
-          { facingMode: { ideal: 'environment' } },
-          config,
-          onScanSuccess,
-          () => {}
+        const constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+
+        controls = await codeReader.decodeFromConstraints(
+          constraints,
+          $('preview'),
+          (result, error) => {
+            if (result && !completed) {
+              completeScan(result.getText());
+            }
+          }
         );
-        running = true;
-        document.getElementById('startBtn').style.display = 'none';
-        document.getElementById('stopBtn').style.display = 'block';
+
         setStatus('Camera đang hoạt động. Đưa mã vào giữa khung.');
+        setButtons(true);
       } catch (error) {
-        document.getElementById('startBtn').disabled = false;
-        setStatus('Không mở được camera: ' + readableCameraError(error) + ' Hãy dùng nút CHỤP / CHỌN ẢNH bên dưới.', true);
+        controls = null;
+        setStatus('Không mở được camera: ' + readableCameraError(error), true);
+        setButtons(false);
+      } finally {
+        isStarting = false;
+        if (!controls) setButtons(false);
       }
     }
 
-    async function stopCamera() {
+    async function stopCamera(showMessage = true) {
       try {
-        if (running) await scanner.stop();
+        if (controls) controls.stop();
       } catch (_) {
       } finally {
-        running = false;
-        document.getElementById('startBtn').style.display = 'block';
-        document.getElementById('startBtn').disabled = false;
-        document.getElementById('stopBtn').style.display = 'none';
-        setStatus('Đã dừng camera.');
+        controls = null;
+        const video = $('preview');
+        if (video.srcObject) {
+          video.srcObject.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+        }
+        setButtons(false);
+        if (showMessage) setStatus('Đã dừng camera.');
       }
     }
 
-    async function onScanSuccess(decodedText) {
-      if (completed) return;
-      const value = String(decodedText || '').trim();
-      if (!value) return;
+    async function completeScan(rawValue) {
+      const value = String(rawValue || '').trim();
+      if (!value || completed) return;
       completed = true;
+      await stopCamera(false);
       if (navigator.vibrate) navigator.vibrate(120);
       setStatus('Đã đọc mã: ' + value);
-      try { if (running) await scanner.stop(); } catch (_) {}
       returnResult(value);
     }
 
     async function scanImage(event) {
       const file = event.target.files && event.target.files[0];
       if (!file || completed) return;
-      if (!validateReturnUrl()) return;
 
+      $('imageBtn').disabled = true;
+      setStatus('Đang xử lý ảnh...');
+
+      let objectUrl = '';
       try {
-        if (running) await stopCamera();
-        setStatus('Đang đọc mã từ ảnh...');
-        const value = await scanner.scanFile(file, true);
-        onScanSuccess(value);
+        await stopCamera(false);
+        objectUrl = URL.createObjectURL(file);
+
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = objectUrl;
+        await img.decode();
+
+        const prepared = prepareImage(img);
+        const result = await codeReader.decodeFromCanvas(prepared);
+        await completeScan(result.getText());
       } catch (error) {
-        setStatus('Không tìm thấy barcode/QR rõ ràng trong ảnh. Hãy chụp gần hơn, đủ sáng và không bị lóa.', true);
+        setStatus('Không đọc được mã trong ảnh. Hãy chụp gần hơn, để mã chiếm phần lớn ảnh, đủ sáng và không bị lóa.', true);
+        completed = false;
+      } finally {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
         event.target.value = '';
+        $('imageBtn').disabled = false;
       }
     }
 
+    function prepareImage(img) {
+      const maxSide = 1800;
+      const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    }
+
     function returnResult(value) {
-      const url = validateReturnUrl();
-      if (!url) return;
+      const url = validatedReturnUrl();
+      if (!url) {
+        $('resultBox').style.display = 'block';
+        $('resultText').textContent = value;
+        setStatus('Đã đọc mã thành công. Đây là chế độ thử độc lập nên chưa quay lại App kiểm kê.');
+        completed = false;
+        return;
+      }
+
       url.searchParams.set('scanTarget', target);
       url.searchParams.set('scanValue', value);
       url.searchParams.set('scanTs', Date.now().toString());
@@ -159,24 +219,39 @@
     }
 
     async function cancelScan() {
-      try { if (running) await scanner.stop(); } catch (_) {}
-      const url = validateReturnUrl();
+      await stopCamera(false);
+      const url = validatedReturnUrl();
       if (!url) {
-        history.back();
+        if (history.length > 1) history.back();
         return;
       }
       url.searchParams.set('scanCancelled', '1');
       location.replace(url.toString());
     }
 
+    async function copyResult() {
+      const text = $('resultText').textContent || '';
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus('Đã sao chép kết quả.');
+      } catch (_) {
+        setStatus('Không sao chép tự động được. Hãy nhấn giữ vào mã để sao chép.', true);
+      }
+    }
+
     function readableCameraError(error) {
-      const text = String(error?.message || error || 'Lỗi không xác định');
-      if (/NotAllowedError|Permission|denied/i.test(text)) return 'trình duyệt chưa cấp quyền Camera.';
-      if (/NotFoundError|DevicesNotFound/i.test(text)) return 'không tìm thấy camera.';
-      if (/NotReadableError|TrackStartError/i.test(text)) return 'camera đang được ứng dụng khác sử dụng.';
+      const text = String(error && (error.message || error.name) || error || 'Lỗi không xác định');
+      if (/NotAllowedError|Permission|denied/i.test(text)) return 'Safari chưa được cấp quyền Camera. Mở Cài đặt trang web → Camera → Cho phép.';
+      if (/NotFoundError|DevicesNotFound/i.test(text)) return 'không tìm thấy camera trên thiết bị.';
+      if (/NotReadableError|TrackStartError|AbortError/i.test(text)) return 'camera đang được ứng dụng khác sử dụng. Hãy đóng ứng dụng camera rồi thử lại.';
       if (/secure|https/i.test(text)) return 'trang scanner phải được mở bằng HTTPS.';
       return text;
     }
+
+    window.addEventListener('pagehide', () => {
+      try { if (controls) controls.stop(); } catch (_) {}
+    });
   </script>
 </body>
 </html>
