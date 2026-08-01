@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Kiểm kê kho</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png?v=2">
+  <link rel="shortcut icon" href="./favicon.ico?v=2">
+  <link rel="manifest" href="./manifest.webmanifest?v=2">
+  <meta name="theme-color" content="#008C45">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Kiểm kê kho">
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4fbf7;color:#173629}
+    body{display:grid;place-items:center;min-height:100vh;padding:24px}
+    .card{width:min(390px,100%);background:#fff;border-radius:28px;padding:30px 24px;text-align:center;box-shadow:0 18px 50px rgba(0,95,48,.16);border:1px solid #dceee4}
+    .icon{width:112px;height:112px;border-radius:25px;box-shadow:0 12px 26px rgba(0,140,69,.24)}
+    h1{font-size:25px;margin:20px 0 7px;color:#006b36}.sub{font-size:14px;color:#66786e;margin-bottom:24px}
+    .loader{width:42px;height:42px;border:4px solid #d8eee2;border-top-color:#008c45;border-radius:50%;margin:0 auto 18px;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    button{width:100%;border:0;border-radius:15px;padding:15px;background:#008c45;color:#fff;font-weight:750;font-size:16px;cursor:pointer}
+    .note{font-size:12px;color:#7b8c83;margin-top:17px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img class="icon" src="./apple-touch-icon.png?v=2" alt="Kangaroo K">
+    <h1>Warehouse Inventory System</h1>
+    <div class="sub">KANGAROO GROUP</div>
+    <div class="loader" aria-hidden="true"></div>
+    <button type="button" id="openBtn">MỞ ỨNG DỤNG</button>
+    <div class="note">Developed by DucLH<br>Production Control Department</div>
+  </main>
+<script>
+  // THAY URL DƯỚI ĐÂY BẰNG URL WEB APP /exec CỦA BẠN.
+  const APP_URL = 'https://script.google.com/macros/s/AKfycbzhlxL7syyMP5mFFj9sgoYnNn2ATEAkVX0ctB7Fu-0zEu4AQ3EhHtxyG5cYAnHTb1Oq/exec';
+
+  function openApp(){
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:[?#].*)?$/.test(APP_URL)) {
+      alert('Bạn chưa thay APP_URL trong file app/index.html bằng đường dẫn Apps Script kết thúc /exec.');
+      return;
+    }
+    window.location.replace(APP_URL);
+  }
+  document.getElementById('openBtn').addEventListener('click', openApp);
+  window.addEventListener('load', () => {
+    if (APP_URL.startsWith('https://script.google.com/macros/s/')) setTimeout(openApp, 900);
+  });
+</script>
+</body>
+</html>
