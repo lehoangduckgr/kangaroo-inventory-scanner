@@ -7,6 +7,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Kangaroo Scanner">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <title>Quét mã kiểm kê</title>
   <script src="https://unpkg.com/@zxing/browser@0.2.1"></script>
   <style>
@@ -40,60 +43,19 @@
   </div>
 </main>
 <script>
-const params=new URLSearchParams(location.search);
-const currentTarget=params.get('target')||'';
-const returnMode=params.get('returnMode')||'redirect';
-const returnUrl=params.get('returnUrl')||'';
-const codeReader=new ZXingBrowser.BrowserMultiFormatReader();
-let stream=null,scanTimer=null,isStarting=false,completed=false,decoding=false;
-const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);const returnUrlParam=params.get('returnUrl')||'';const target=params.get('target')||'';const returnMode=params.get('returnMode')||'redirect';
+const codeReader=new ZXingBrowser.BrowserMultiFormatReader();let stream=null,scanTimer=null,isStarting=false,completed=false,decoding=false;const $=id=>document.getElementById(id);
 function setStatus(m,e=false){$('status').textContent=m;$('status').style.color=e?'#ffaaaa':'#86efac'}
 function setButtons(r){$('startBtn').style.display=r?'none':'block';$('stopBtn').style.display=r?'block':'none';$('startBtn').disabled=isStarting;$('imageBtn').disabled=isStarting||r}
-async function startCamera(){if(isStarting||stream)return;completed=false;isStarting=true;setButtons(false);setStatus('Đang mở camera...');try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:960},height:{ideal:540}}});$('preview').srcObject=stream;await $('preview').play();setButtons(true);setStatus('Đưa đúng mã cần quét vào khung xanh.');scanTimer=setInterval(scanRoiFrame,150)}catch(e){stream=null;setButtons(false);setStatus('Không mở được camera: '+readableCameraError(e),true)}finally{isStarting=false}}
+async function startCamera(){if(isStarting||stream||completed)return;isStarting=true;setButtons(false);setStatus('Đang mở camera...');try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});$('preview').srcObject=stream;await $('preview').play();setButtons(true);setStatus('Đưa đúng mã cần quét vào khung xanh.');scanTimer=setInterval(scanRoiFrame,140)}catch(e){stream=null;setButtons(false);setStatus('Không mở được camera: '+readableCameraError(e),true)}finally{isStarting=false}}
 async function scanRoiFrame(){if(decoding||completed||!stream||$('preview').readyState<2)return;decoding=true;try{const v=$('preview'),vw=v.videoWidth,vh=v.videoHeight;if(!vw||!vh)return;const x=Math.round(vw*.10),y=Math.round(vh*.38),w=Math.round(vw*.80),h=Math.round(vh*.22);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d',{willReadFrequently:true}).drawImage(v,x,y,w,h,0,0,w,h);const r=await codeReader.decodeFromCanvas(c);if(r)completeScan(r.getText())}catch(_){ }finally{decoding=false}}
 async function stopCamera(show=true){if(scanTimer){clearInterval(scanTimer);scanTimer=null}if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('preview').srcObject=null;setButtons(false);if(show)setStatus('Đã dừng camera.')}
-async function completeScan(raw){const value=String(raw||'').trim();if(!value||completed)return;completed=true;await stopCamera(false);if(navigator.vibrate)navigator.vibrate(80);sendResult(value)}
-function buildReturnUrl(value='', cancelled=false){
-  if(!returnUrl) return '';
-  try{
-    const u=new URL(returnUrl);
-    if(cancelled){
-      u.searchParams.set('scanCancelled','1');
-    }else{
-      u.searchParams.set('scanTarget',currentTarget);
-      u.searchParams.set('scanValue',value);
-    }
-    u.searchParams.set('_scanTs',Date.now().toString());
-    return u.toString();
-  }catch(_){return ''}
-}
-function sendResult(value){
-  $('resultBox').style.display='block';
-  $('resultText').textContent=value;
-
-  if(returnMode==='redirect'){
-    const back=buildReturnUrl(value,false);
-    if(!back){setStatus('Liên kết quay lại không hợp lệ.',true);completed=false;return}
-    setStatus('Đã đọc mã. Đang quay lại ứng dụng...');
-    setTimeout(()=>location.replace(back),80);
-    return;
-  }
-
-  if(window.opener&&!window.opener.closed){
-    window.opener.postMessage({type:'KANGAROO_SCAN_RESULT',target:currentTarget,value},'*');
-    setStatus('Đã gửi mã về ứng dụng.');
-    setTimeout(()=>{try{window.close()}catch(_){}},120);
-    return;
-  }
-
-  setStatus('Đã đọc mã thành công.');
-  completed=false;
-}
-async function scanImage(ev){const file=ev.target.files&&ev.target.files[0];if(!file)return;$('imageBtn').disabled=true;setStatus('Đang đọc vùng giữa ảnh...');let url='';try{await stopCamera(false);url=URL.createObjectURL(file);const img=new Image();img.src=url;await img.decode();const canvases=prepareImageCrops(img);let result=null;for(const c of canvases){try{result=await codeReader.decodeFromCanvas(c);if(result)break}catch(_){}}if(!result)throw new Error('not found');await completeScan(result.getText())}catch(_){completed=false;setStatus('Không đọc được mã. Hãy chụp gần, đặt mã ở chính giữa và tránh để mã khác lọt vào vùng giữa.',true)}finally{if(url)URL.revokeObjectURL(url);ev.target.value='';$('imageBtn').disabled=false}}
-function prepareImageCrops(img){const max=1600,s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),W=Math.round(img.naturalWidth*s),H=Math.round(img.naturalHeight*s);const base=document.createElement('canvas');base.width=W;base.height=H;base.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0,W,H);const crops=[];[[.08,.32,.84,.36],[.04,.20,.92,.60],[0,0,1,1]].forEach(([rx,ry,rw,rh])=>{const c=document.createElement('canvas');c.width=Math.round(W*rw);c.height=Math.round(H*rh);c.getContext('2d',{willReadFrequently:true}).drawImage(base,W*rx,H*ry,W*rw,H*rh,0,0,c.width,c.height);crops.push(c)});return crops}
-async function cancelScan(){await stopCamera(false);if(returnMode==='redirect'){const back=buildReturnUrl('',true);if(back){location.replace(back);return}}if(window.opener&&!window.opener.closed){window.opener.postMessage({type:'KANGAROO_SCAN_CANCEL'},'*')}window.close()}
-function readableCameraError(e){const t=String(e&&(e.message||e.name)||e||'Lỗi');if(/NotAllowed|Permission|denied/i.test(t))return'Safari chưa được cấp quyền Camera. Vào aA > Cài đặt trang web > Camera > Cho phép.';if(/NotFound/i.test(t))return'Không tìm thấy camera.';if(/NotReadable|TrackStart|Abort/i.test(t))return'Camera đang được ứng dụng khác sử dụng.';return t}
-window.addEventListener('pagehide',()=>stopCamera(false));
-window.addEventListener('DOMContentLoaded',()=>{if(currentTarget)setTimeout(startCamera,120)});
+async function completeScan(raw){const value=String(raw||'').trim();if(!value||completed)return;completed=true;await stopCamera(false);if(navigator.vibrate)navigator.vibrate(80);returnResult(value)}
+async function scanImage(ev){const file=ev.target.files&&ev.target.files[0];if(!file||completed)return;$('imageBtn').disabled=true;setStatus('Đang đọc vùng giữa ảnh...');let url='';try{await stopCamera(false);url=URL.createObjectURL(file);const img=new Image();img.src=url;await img.decode();const canvases=prepareImageCrops(img);let result=null;for(const c of canvases){try{result=await codeReader.decodeFromCanvas(c);if(result)break}catch(_){}}if(!result)throw new Error('not found');await completeScan(result.getText())}catch(_){completed=false;setStatus('Không đọc được mã. Hãy chụp gần, đặt mã cần đọc ở chính giữa ảnh và tránh để mã khác lọt vào vùng giữa.',true)}finally{if(url)URL.revokeObjectURL(url);ev.target.value='';$('imageBtn').disabled=false}}
+function prepareImageCrops(img){const max=1800,s=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),W=Math.round(img.naturalWidth*s),H=Math.round(img.naturalHeight*s);const base=document.createElement('canvas');base.width=W;base.height=H;base.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0,W,H);const crops=[];[[.08,.32,.84,.36],[.04,.20,.92,.60],[0,0,1,1]].forEach(([rx,ry,rw,rh])=>{const c=document.createElement('canvas');c.width=Math.round(W*rw);c.height=Math.round(H*rh);c.getContext('2d',{willReadFrequently:true}).drawImage(base,W*rx,H*ry,W*rw,H*rh,0,0,c.width,c.height);crops.push(c)});return crops}
+function returnResult(value){if(returnMode==='postMessage'&&window.opener&&!window.opener.closed){window.opener.postMessage({type:'KANGAROO_SCAN_RESULT',target,value},'*');$('resultBox').style.display='block';$('resultText').textContent=value;setStatus('Đã gửi mã về ứng dụng. Đang đóng...');setTimeout(()=>window.close(),120);return}let u=null;try{u=new URL(returnUrlParam)}catch(_){}if(!u){$('resultBox').style.display='block';$('resultText').textContent=value;setStatus('Đã đọc mã thành công. Đây là chế độ thử độc lập.');completed=false;return}u.searchParams.set('scanTarget',target);u.searchParams.set('scanValue',value);u.searchParams.set('scanTs',Date.now());location.replace(u.toString())}
+async function cancelScan(){await stopCamera(false);if(returnMode==='postMessage'&&window.opener&&!window.opener.closed){window.opener.postMessage({type:'KANGAROO_SCAN_CANCEL'},'*');window.close();return}if(history.length>1)history.back()}
+function readableCameraError(e){const t=String(e&&(e.message||e.name)||e||'Lỗi');if(/NotAllowed|Permission|denied/i.test(t))return'Safari chưa được cấp quyền Camera.';if(/NotFound/i.test(t))return'Không tìm thấy camera.';if(/NotReadable|TrackStart|Abort/i.test(t))return'Camera đang được ứng dụng khác sử dụng.';return t}
+window.addEventListener('pagehide',()=>stopCamera(false));window.addEventListener('DOMContentLoaded',()=>{if(target)setTimeout(startCamera,120)});
 </script>
 </body></html>
